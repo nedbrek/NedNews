@@ -27,7 +27,22 @@ proc httpDone {token} {
 	}
 
 	if {!$fail} {
-		set ::httpData [::http::data $token]
+		set httpData [::http::data $token]
+		set ::httpData $httpData
+		set doc [dom parse $httpData]
+		$doc selectNodesNamespaces {atom http://www.w3.org/2005/Atom}
+
+		set entries [$doc selectNodes /atom:feed/atom:entry]
+
+		foreach e $entries {
+			set title  [$e selectNodes string(atom:title/text())]
+			set author [$e selectNodes string(atom:author/atom:name/text())]
+			set time   [$e selectNodes string(atom:updated/text())]
+			set link   [$e selectNodes string(atom:link/@href)]
+			set body   [$e selectNodes string(atom:summary/text())]
+		}
+
+		$doc delete
 	}
 
 	::http::cleanup $token
