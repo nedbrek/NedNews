@@ -1,3 +1,41 @@
+package require http
+package require tdom
+
+set url "http://semipublic.comp-arch.net/wiki/index.php?title=Special:RecentChanges&feed=atom"
+
+set httpData ""
+proc httpDone {token} {
+
+	set fail 0
+	switch [::http::status $token] {
+		ok {
+			if {[::http::ncode $token] != 200} {
+				puts "HTTP server returned non-OK code [::http::ncode $token]"
+				set fail 1
+			}
+		}
+
+		eof {
+			puts "HTTP server returned nothing"
+			set fail 1
+		}
+
+		error {
+			puts "HTTP error [::http::error $token]"
+			set fail 1
+		}
+	}
+
+	if {!$fail} {
+		set ::httpData [::http::data $token]
+	}
+
+	::http::cleanup $token
+	puts "HTTP Done"
+}
+
+set httpToken [::http::geturl $url -timeout 5000 -command httpDone]
+
 ### gui
 wm withdraw .
 toplevel .tMain
