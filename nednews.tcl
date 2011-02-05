@@ -34,12 +34,15 @@ proc httpDone {token} {
 
 		set entries [$doc selectNodes /atom:feed/atom:entry]
 
+		set tree .tMain.fHdr.tree
 		foreach e $entries {
 			set title  [$e selectNodes string(atom:title/text())]
 			set author [$e selectNodes string(atom:author/atom:name/text())]
 			set time   [$e selectNodes string(atom:updated/text())]
 			set link   [$e selectNodes string(atom:link/@href)]
 			set body   [$e selectNodes string(atom:summary/text())]
+
+			$tree insert {} end -text $title
 		}
 
 		$doc delete
@@ -58,14 +61,22 @@ toplevel .tMain
 ## a splitter for left and right windows
 pack [ttk::panedwindow .tMain.splitLR -orient horizontal] -expand 1 -fill both
 # a tree for news sources
-.tMain.splitLR add [ttk::treeview .tMain.splitLR.tSrcs]
+.tMain.splitLR add [ttk::treeview .tMain.tSrcs]
 
 ## a splitter for top and bottom (headers and bodies)
-.tMain.splitLR add [ttk::panedwindow .tMain.splitLR.splitRTB -orient vertical]
+.tMain.splitLR add [ttk::panedwindow .tMain.splitRTB -orient vertical]
 
 # a tree for headers (threaded view)
-.tMain.splitLR.splitRTB add [ttk::treeview .tMain.splitLR.splitRTB.tHdr]
+frame .tMain.fHdr
+pack [scrollbar .tMain.fHdr.scroll -orient vertical \
+   -command [list .tMain.fHdr.tree yview]] \
+      -fill y -side right
+pack [ttk::treeview .tMain.fHdr.tree \
+   -yscrollcommand [list .tMain.fHdr.scroll set]] \
+      -fill both -expand 1 -side right
+
+.tMain.splitRTB add .tMain.fHdr
 
 # textbox for bodies
-.tMain.splitLR.splitRTB add [text .tMain.splitLR.splitRTB.xBdy -state disabled]
+.tMain.splitRTB add [text .tMain.xBdy -state disabled]
 
