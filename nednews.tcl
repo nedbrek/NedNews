@@ -4,6 +4,53 @@ package require tdom
 set url "http://semipublic.comp-arch.net/wiki/index.php?title=Special:RecentChanges&feed=atom"
 
 set httpData ""
+proc processXML {token} {
+	set httpData [::http::data $token]
+	set ::httpData $httpData
+	set doc [dom parse $httpData]
+
+	# try for atom
+	$doc selectNodesNamespaces {atom http://www.w3.org/2005/Atom}
+	set ns "atom:"
+	set title  "atom:title"
+	set author "atom:author/atom:name"
+	set date   "atom:updated"
+	set link   "atom:link/@href"
+	set body   "atom:summary"
+
+	set entries [$doc selectNodes /atom:feed/atom:entry]
+	if {$entries eq ""} {
+		# try old school RSS tags
+		$doc selectNodesNamespaces {dc http://purl.org/dc/elements/1.1/}
+
+		set entries [$doc selectNodes //item]
+
+		set ns ""
+		set title  "title"
+		set author "dc:creator"
+		set date   "pubDate"
+		set link   "link/text()"
+		set body   "content:encoded"
+	}
+
+	set tree .tMain.fHdr.tree
+	$tree delete [$tree children {}]
+
+	foreach e $entries {
+		set ttl [$e selectNodes string($title/text())]
+		set aut [$e selectNodes string($author/text())]
+		set dte [$e selectNodes string($date/text())]
+		set lnk [$e selectNodes string($link)]
+		set bdy [$e selectNodes string($body/text())]
+
+		$tree insert {} end -text $ttl
+
+		update; # we may be here a while
+	}
+
+	$doc delete
+}
+
 proc httpDone {token} {
 
 	set fail 0
@@ -11,6 +58,7 @@ proc httpDone {token} {
 		ok {
 			if {[::http::ncode $token] != 200} {
 				puts "HTTP server returned non-OK code [::http::ncode $token]"
+				puts "HTTP code is [::http::code]"
 				set fail 1
 			}
 		}
@@ -27,25 +75,7 @@ proc httpDone {token} {
 	}
 
 	if {!$fail} {
-		set httpData [::http::data $token]
-		set ::httpData $httpData
-		set doc [dom parse $httpData]
-		$doc selectNodesNamespaces {atom http://www.w3.org/2005/Atom}
-
-		set entries [$doc selectNodes /atom:feed/atom:entry]
-
-		set tree .tMain.fHdr.tree
-		foreach e $entries {
-			set title  [$e selectNodes string(atom:title/text())]
-			set author [$e selectNodes string(atom:author/atom:name/text())]
-			set time   [$e selectNodes string(atom:updated/text())]
-			set link   [$e selectNodes string(atom:link/@href)]
-			set body   [$e selectNodes string(atom:summary/text())]
-
-			$tree insert {} end -text $title
-		}
-
-		$doc delete
+		processXML $token
 	}
 
 	::http::cleanup $token
