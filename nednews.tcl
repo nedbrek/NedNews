@@ -1,5 +1,8 @@
+package require Tk
 package require http
 package require tdom
+package require nntp
+package require sqlite3
 
 set url "http://semipublic.comp-arch.net/wiki/index.php?title=Special:RecentChanges&feed=atom"
 
@@ -82,7 +85,85 @@ proc httpDone {token} {
 	puts "HTTP Done"
 }
 
-set httpToken [::http::geturl $url -timeout 5000 -command httpDone]
+#set httpToken [::http::geturl $url -timeout 5000 -command httpDone]
+
+if {0} {
+	set nc [::nntp::nntp [dict get $settings HOST] [dict get $settings PORT]]
+	$nc authinfo [dict get $settings USER] [dict get $settings PASS]
+
+	set msgList [fetchNntpMsgList $nc $settings]
+	set msgs [fetchNntpMsgs $nc $msgList]; set tmp 0
+	$nc quit
+}
+
+proc fetchNntpMsgList {nc settings} {
+
+	set groupName [lindex [dict get $settings GROUPS] 0]
+	set msgList [$nc group $groupName]
+
+	return $msgList
+	# (list)
+	# 0 number of articles
+	# 1 first id
+	# 2 last id
+	# 3 group name
+}
+
+proc fetchNntpMsgs {nc msgList} {
+	return [$nc xover [lindex $msgList 1] [lindex $msgList 2]]
+}
+
+# msg is a list with headers (one per element), a blank element, then the
+# body (one line per element)
+proc parseNntpMsg {msg} {
+	set headers ""
+	set body ""
+
+	set inHeaders 1
+	foreach l $msg {
+		if {$inHeaders} {
+			if {$l eq ""} {
+				set inHeaders 0
+			} else {
+				lappend headers $l
+			}
+		} else {
+			append body "$l\n"
+		}
+	}
+	return [dict create HEADERS $headers BODY $body]
+}
+
+proc parseNntpHdrList {hdrList} {
+	set ret [dict create FROM "" SUBJECT "" DATE ""]
+
+	foreach hdr $hdrList {
+		if {![regexp {(.*?): (.*)$} $hdr -> type value]} {
+			continue
+		}
+
+		switch $type {
+			From    { dict set ret FROM    $value }
+			Subject { dict set ret SUBJECT $value }
+			Date    { dict set ret DATE    $value }
+		}
+	}
+
+	return $ret
+}
+
+if {0} {
+	set maxBody 0
+	set oversz 154243
+	foreach msg $txt {
+		set dm [parseNntpMsg $msg]
+		set bodySz [string bytelength [dict get $dm BODY]]
+		if {$bodySz == $oversz} {
+			puts [dict get $dm HEADERS]
+		}
+		set maxBody [expr {max($maxBody, $bodySz)}]
+	}
+}
 
 ### gui
 wm withdraw .
