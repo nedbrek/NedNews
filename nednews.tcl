@@ -190,22 +190,44 @@ proc clockScan {dateStr} {
 	return 0
 }
 
+proc deleteMsg {w} {
+	set sel [$w selection]
+	foreach i $sel {
+		set id [lindex [$w item $i -values] 0]
+		::db eval {
+			UPDATE msgs
+			SET status = "deleted"
+			WHERE id = $id
+		}
+
+		$w item $i -tags deleted
+	}
+
+	set nextId [$w next $i]
+	if {$nextId ne "" && $nextId ne "{}"} {
+		$w selection set $nextId
+		$w see $nextId
+	}
+}
+
 proc showBody {w} {
-	.tMain.xBdy configure -state normal
-	.tMain.xBdy delete 1.0 end
+	set t .tMain.xBdy
+
+	$t configure -state normal
+	$t delete 1.0 end
 
 	set sel [$w selection]
 	if {[llength $sel] != 1} {
-		.tMain.xBdy configure -state disabled
+		$t configure -state disabled
 		return
 	}
 
 	set id [lindex [$w item $sel -values] 0]
 
 	set body [lindex [::db eval {SELECT body FROM msgs WHERE id=$id}] 0]
-	.tMain.xBdy insert 1.0 $body
+	$t insert 1.0 $body
 
-	.tMain.xBdy configure -state disabled
+	$t configure -state disabled
 }
 
 sqlite3 ::db "test.db"
@@ -244,14 +266,16 @@ if {0} {
 		}
 		::db eval {END TRANSACTION}
 	}
+}
 
-
+proc refresh {} {
 	.tMain.fHdr.tree delete [.tMain.fHdr.tree children {}]
 
 	set dbRes [::db eval {
 		SELECT id, author, subject, date, status FROM msgs
-		ORDER BY clockScan(date) DESC LIMIT 100
-	}]; set tmp 0
+		WHERE status != "deleted"
+		ORDER BY id DESC LIMIT 100
+	}]
 
 	foreach {id author subject date status} $dbRes {
 		.tMain.fHdr.tree insert {} 0 -text $subject -values [list $id $author $date $status]
@@ -259,6 +283,8 @@ if {0} {
 }
 
 ### gui
+set deletedFont [font create -overstrike 1]
+
 wm withdraw .
 toplevel .tMain
 
@@ -280,8 +306,10 @@ pack [ttk::treeview .tMain.fHdr.tree \
       -fill both -expand 1 -side right
 
 .tMain.fHdr.tree -columns {1 2 3 4}
+.tMain.fHdr.tree tag configure deleted -font $deletedFont
 
 bind .tMain.fHdr.tree <<TreeviewSelect>> {showBody %W}
+bind .tMain.fHdr.tree <Delete> {deleteMsg %W}
 
 .tMain.splitRTB add .tMain.fHdr
 
