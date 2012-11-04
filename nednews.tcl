@@ -4,6 +4,27 @@ package require tdom
 package require nntp
 package require sqlite3
 
+### database
+proc createDb {} {
+	if {[info exists ::db]} {
+		::db close
+	}
+	sqlite3 ::db "test.db"
+
+	::db eval {
+		CREATE TABLE msgs(
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			author TEXT not null,
+			subject TEXT not NULL,
+			date TEXT not NULL,
+			status not NULL,
+			origHdrs TEXT not NULL,
+			body TEXT not NULL
+		)
+	}
+}
+
+### http
 set url "http://semipublic.comp-arch.net/wiki/index.php?title=Special:RecentChanges&feed=atom"
 
 set httpData ""
@@ -87,6 +108,7 @@ proc httpDone {token} {
 
 #set httpToken [::http::geturl $url -timeout 5000 -command httpDone]
 
+### nntp
 if {0} {
 	set nc [::nntp::nntp [dict get $settings HOST] [dict get $settings PORT]]
 	$nc authinfo [dict get $settings USER] [dict get $settings PASS]
@@ -152,6 +174,43 @@ proc parseNntpHdrList {hdrList} {
 	return $ret
 }
 
+proc clockScan {dateStr} {
+	# try simple scan
+	if {![catch {clock scan $dateStr} ret]} {
+		return $ret
+	}
+
+	set badIndex [string first { +0000} $dateStr]
+	set dateStr2 [string range $dateStr 0 $badIndex]
+	if {![catch {clock scan "$dateStr2 GMT"} ret]} {
+		return $ret
+	}
+
+	puts "ClockScan error on '$dateStr'"
+	return 0
+}
+
+proc showBody {w} {
+	.tMain.xBdy configure -state normal
+	.tMain.xBdy delete 1.0 end
+
+	set sel [$w selection]
+	if {[llength $sel] != 1} {
+		.tMain.xBdy configure -state disabled
+		return
+	}
+
+	set id [lindex [$w item $sel -values] 0]
+
+	set body [lindex [::db eval {SELECT body FROM msgs WHERE id=$id}] 0]
+	.tMain.xBdy insert 1.0 $body
+
+	.tMain.xBdy configure -state disabled
+}
+
+sqlite3 ::db "test.db"
+::db function clockScan {clockScan}
+
 if {0} {
 	set maxBody 0
 	set oversz 154243
@@ -162,6 +221,40 @@ if {0} {
 			puts [dict get $dm HEADERS]
 		}
 		set maxBody [expr {max($maxBody, $bodySz)}]
+	}
+
+	foreach msg $txt {
+		set dm [parseNntpMsg $msg]
+
+		set origHdrs [dict get $dm HEADERS]
+		set body     [dict get $dm BODY]
+
+		set hdrDict [parseNntpHdrList $origHdrs]
+		set author  [dict get $hdrDict FROM]
+		set subject [dict get $hdrDict SUBJECT]
+		set date    [dict get $hdrDict DATE]
+
+		::db eval {BEGIN TRANSACTION}
+		::db eval {
+			INSERT INTO msgs
+			(author, subject, date, status, origHdrs, body)
+			VALUES(
+			$author, $subject, $date, "new", $origHdrs, $body
+			)
+		}
+		::db eval {END TRANSACTION}
+	}
+
+
+	.tMain.fHdr.tree delete [.tMain.fHdr.tree children {}]
+
+	set dbRes [::db eval {
+		SELECT id, author, subject, date, status FROM msgs
+		ORDER BY clockScan(date) DESC LIMIT 100
+	}]; set tmp 0
+
+	foreach {id author subject date status} $dbRes {
+		.tMain.fHdr.tree insert {} 0 -text $subject -values [list $id $author $date $status]
 	}
 }
 
@@ -185,6 +278,10 @@ pack [scrollbar .tMain.fHdr.scroll -orient vertical \
 pack [ttk::treeview .tMain.fHdr.tree \
    -yscrollcommand [list .tMain.fHdr.scroll set]] \
       -fill both -expand 1 -side right
+
+.tMain.fHdr.tree -columns {1 2 3 4}
+
+bind .tMain.fHdr.tree <<TreeviewSelect>> {showBody %W}
 
 .tMain.splitRTB add .tMain.fHdr
 
