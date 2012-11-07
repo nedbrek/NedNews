@@ -14,12 +14,25 @@ proc createDb {} {
 	::db eval {
 		CREATE TABLE msgs(
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			author TEXT not null,
+			author TEXT not NULL,
 			subject TEXT not NULL,
 			date TEXT not NULL,
 			status not NULL,
 			origHdrs TEXT not NULL,
 			body TEXT not NULL
+		)
+	}
+
+	::db eval {
+		CREATE TABLE nntp(
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT not NULL,
+			host TEXT not NULL,
+			port TEXT not NULL,
+			user TEXT not NULL,
+			pass TEXT not NULL,
+			groups TEXT not NULL,
+			lastFetchId TEXT not NULL
 		)
 	}
 }
@@ -110,12 +123,31 @@ proc httpDone {token} {
 
 ### nntp
 if {0} {
+	set f [open [file join ~ .nednewsrc]]
+	set settings [read $f]
+	close $f
+
 	set nc [::nntp::nntp [dict get $settings HOST] [dict get $settings PORT]]
 	$nc authinfo [dict get $settings USER] [dict get $settings PASS]
 
 	set msgList [fetchNntpMsgList $nc $settings]
-	set msgs [fetchNntpMsgs $nc $msgList]; set tmp 0
+	set lastMsg [lindex $msgList 2]
+	set hdrList [$nc xover [expr $lastMsg - 100] $lastMsg]; set tmp 0
+	# msgId
+	# subject
+	# from
+	# date
+	# path
+	# body size
+	# header size
+	# xref
+
 	$nc quit
+
+	set msgs [fetchNntpMsgs $nc $msgList]; set tmp 0
+
+	# NOTE: newnews disabled at eternal-september.org
+	set msgs [$nc newnews $groupName $lastDate]; set tmp 0
 }
 
 proc fetchNntpMsgList {nc settings} {
