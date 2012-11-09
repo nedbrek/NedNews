@@ -372,6 +372,7 @@ proc deleteMsg {w} {
 	set nextId [$w next $i]
 	if {$nextId ne "" && $nextId ne "{}"} {
 		$w selection set $nextId
+		$w focus $nextId
 		$w see $nextId
 	}
 }
