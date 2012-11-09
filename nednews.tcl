@@ -122,49 +122,18 @@ proc httpDone {token} {
 #set httpToken [::http::geturl $url -timeout 5000 -command httpDone]
 
 ### nntp
-if {0} {
-	set f [open [file join ~ .nednewsrc]]
-	set settings [read $f]
-	close $f
+# pull the group status
+proc fetchNntpMsgList {nc settings groupIdx} {
 
-	set nc [::nntp::nntp [dict get $settings HOST] [dict get $settings PORT]]
-	$nc authinfo [dict get $settings USER] [dict get $settings PASS]
-
-	set msgList [fetchNntpMsgList $nc $settings]
-	set lastMsg [lindex $msgList 2]
-	set hdrList [$nc xover [expr $lastMsg - 100] $lastMsg]; set tmp 0
-	# msgId
-	# subject
-	# from
-	# date
-	# path
-	# body size
-	# header size
-	# xref
-
-	$nc quit
-
-	set msgs [fetchNntpMsgs $nc $msgList]; set tmp 0
-
-	# NOTE: newnews disabled at eternal-september.org
-	set msgs [$nc newnews $groupName $lastDate]; set tmp 0
-}
-
-proc fetchNntpMsgList {nc settings} {
-
-	set groupName [lindex [dict get $settings GROUPS] 0]
+	set groupName [lindex [dict get $settings GROUPS] $groupIdx]
 	set msgList [$nc group $groupName]
 
 	return $msgList
-	# (list)
+	# lindex
 	# 0 number of articles
 	# 1 first id
 	# 2 last id
 	# 3 group name
-}
-
-proc fetchNntpMsgs {nc msgList} {
-	return [$nc xover [lindex $msgList 1] [lindex $msgList 2]]
 }
 
 # msg is a list with headers (one per element), a blank element, then the
@@ -185,9 +154,12 @@ proc parseNntpMsg {msg} {
 			append body "$l\n"
 		}
 	}
+
 	return [dict create HEADERS $headers BODY $body]
 }
 
+# extract the relevant info from headers
+# (not currently used)
 proc parseNntpHdrList {hdrList} {
 	set ret [dict create FROM "" SUBJECT "" DATE ""]
 
@@ -204,6 +176,168 @@ proc parseNntpHdrList {hdrList} {
 	}
 
 	return $ret
+}
+
+# update the database with new messages for the given group
+proc updateNntpGroup {accountId groupIndex} {
+	set settings [::db eval {
+		SELECT 'HOST', host, 'PORT', port, 'USER', user, 'PASS', pass, 'GROUPS', groups, 'LAST_MSG_ID', lastFetchId
+		FROM nntp
+		WHERE id = $accountId
+	}]
+
+	set nc [::nntp::nntp [dict get $settings HOST] [dict get $settings PORT]]
+	$nc authinfo [dict get $settings USER] [dict get $settings PASS]
+
+	set msgList [fetchNntpMsgList $nc $settings $groupIndex]
+	set lastMsg [lindex $msgList 2]
+	set lastFetched [dict get $settings LAST_MSG_ID]
+	if {$lastFetched == $lastMsg} {
+		# up to date
+		$nc quit
+		return
+	}
+
+	# set the current pointer to the next message
+	if {$lastFetched eq ""} {
+		# no prior history, fetch first message
+		set lastFetch [lindex $msgList 1]
+		$nc stat $lastFetched
+	} else {
+		# else, set cursor to last fetched, and advance
+		$nc stat $lastFetched
+		if {[catch {$nc next}]} {
+			return ;# nothing new
+		}
+	}
+
+	# don't fetch forever
+	set ct 0
+
+	::db eval {BEGIN TRANSACTION}
+
+	set done 0
+	while {$ct < 500 && !$done} {
+		incr ct
+
+		set overview [lindex [$nc xover] 0]
+		# a single string with all this info, tab separated
+		# 0 msgId
+		# 1 subject
+		# 2 author
+		# 3 date
+		# 4 idstring
+		# 5 path
+		# 6 body size
+		# 7 header size
+		# 8 xref
+		set hdrList [split $overview "\t"]
+		foreach {msgId subject author date idstring path bodySz hdrSz xref} $hdrList {
+		}
+
+		set lastFetched $msgId
+
+		if {$bodySz > 300000} {
+			# skip huge messages
+
+			# but insert headers, so we can fetch it later
+			::db eval {
+				INSERT INTO msgs
+				(author, subject, date, status, origHdrs, body)
+				VALUES(
+				$author, $subject, $date, "new", "NedNews_MsgId: $msgId, ""
+				)
+			}
+
+			set done [catch {$nc next}]
+			continue
+		}
+
+		set origMsg [$nc article]
+		set dm [parseNntpMsg $origMsg]
+
+		set origHdrs [dict get $dm HEADERS]
+		set body     [dict get $dm BODY]
+
+		::db eval {
+			INSERT INTO msgs
+			(author, subject, date, status, origHdrs, body)
+			VALUES(
+			$author, $subject, $date, "new", $origHdrs, $body
+			)
+		}
+
+		set done [catch {$nc next}]
+	}
+
+	$nc quit
+	::db eval {END TRANSACTION}
+
+	::db eval {
+		UPDATE nntp
+		SET lastFetchId = $lastFetched
+		WHERE id = $accountId
+	}
+}
+
+if {0} {
+	set f [open [file join ~ .nednewsrc]]
+	set settings [read $f]
+	close $f
+
+	set nc [::nntp::nntp [dict get $settings HOST] [dict get $settings PORT]]
+	$nc authinfo [dict get $settings USER] [dict get $settings PASS]
+
+	set msgList [fetchNntpMsgList $nc $settings 0]
+	set lastMsg [lindex $msgList 2]
+	set hdrList [$nc xover [expr $lastMsg - 100] $lastMsg]; set tmp 0
+	# msgId
+	# subject
+	# from
+	# date
+	# path
+	# body size
+	# header size
+	# xref
+
+	$nc quit
+
+	# NOTE: newnews disabled at eternal-september.org
+	set msgs [$nc newnews $groupName $lastDate]; set tmp 0
+
+	# message handler
+	foreach msg $txt {
+		set dm [parseNntpMsg $msg]
+
+		set origHdrs [dict get $dm HEADERS]
+		set body     [dict get $dm BODY]
+
+		set hdrDict [parseNntpHdrList $origHdrs]
+		set author  [dict get $hdrDict FROM]
+		set subject [dict get $hdrDict SUBJECT]
+		set date    [dict get $hdrDict DATE]
+
+		::db eval {BEGIN TRANSACTION}
+		::db eval {
+			INSERT INTO msgs
+			(author, subject, date, status, origHdrs, body)
+			VALUES(
+			$author, $subject, $date, "new", $origHdrs, $body
+			)
+		}
+		::db eval {END TRANSACTION}
+	}
+
+	set maxBody 0
+	set oversz 154243
+	foreach msg $txt {
+		set dm [parseNntpMsg $msg]
+		set bodySz [string bytelength [dict get $dm BODY]]
+		if {$bodySz == $oversz} {
+			puts [dict get $dm HEADERS]
+		}
+		set maxBody [expr {max($maxBody, $bodySz)}]
+	}
 }
 
 proc clockScan {dateStr} {
@@ -264,41 +398,6 @@ proc showBody {w} {
 
 sqlite3 ::db "test.db"
 ::db function clockScan {clockScan}
-
-if {0} {
-	set maxBody 0
-	set oversz 154243
-	foreach msg $txt {
-		set dm [parseNntpMsg $msg]
-		set bodySz [string bytelength [dict get $dm BODY]]
-		if {$bodySz == $oversz} {
-			puts [dict get $dm HEADERS]
-		}
-		set maxBody [expr {max($maxBody, $bodySz)}]
-	}
-
-	foreach msg $txt {
-		set dm [parseNntpMsg $msg]
-
-		set origHdrs [dict get $dm HEADERS]
-		set body     [dict get $dm BODY]
-
-		set hdrDict [parseNntpHdrList $origHdrs]
-		set author  [dict get $hdrDict FROM]
-		set subject [dict get $hdrDict SUBJECT]
-		set date    [dict get $hdrDict DATE]
-
-		::db eval {BEGIN TRANSACTION}
-		::db eval {
-			INSERT INTO msgs
-			(author, subject, date, status, origHdrs, body)
-			VALUES(
-			$author, $subject, $date, "new", $origHdrs, $body
-			)
-		}
-		::db eval {END TRANSACTION}
-	}
-}
 
 proc refresh {} {
 	.tMain.fHdr.tree delete [.tMain.fHdr.tree children {}]
