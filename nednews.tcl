@@ -397,9 +397,6 @@ proc showBody {w} {
 	$t configure -state disabled
 }
 
-sqlite3 ::db "test.db"
-::db function clockScan {clockScan}
-
 proc refresh {} {
 	.tMain.fHdr.tree delete [.tMain.fHdr.tree children {}]
 
@@ -411,6 +408,23 @@ proc refresh {} {
 
 	foreach {id author subject date status} $dbRes {
 		.tMain.fHdr.tree insert {} 0 -text $subject -values [list $id $author $date $status]
+	}
+}
+
+proc buildAccounts {w} {
+	set nntp [::db eval {
+		SELECT id, name, groups
+		FROM nntp
+	}]
+
+	foreach {id name groups} $nntp {
+		set par [$w insert {} end -text $name -values [list $id]]
+
+		set ct 0
+		foreach g $groups {
+			$w insert $par end -text $g -values [list $id $ct]
+			incr ct
+		}
 	}
 }
 
@@ -445,9 +459,14 @@ pack [ttk::treeview .tMain.fHdr.tree \
 # textbox for bodies
 .tMain.splitRTB add [text .tMain.xBdy -state disabled]
 
-# bindings
+### bindings
 bind .tMain.fHdr.tree <<TreeviewSelect>> {showBody %W}
 bind .tMain.fHdr.tree <Delete> {deleteMsg %W}
 
 bind .tMain <space> { .tMain.xBdy yview scroll 1 page }
+
+### runtime
+sqlite3 ::db "test.db"
+#::db function clockScan {clockScan}
+buildAccounts .tMain.tSrcs
 
