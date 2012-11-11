@@ -437,7 +437,7 @@ pack [ttk::treeview .tMain.fHdr.tree \
    -yscrollcommand [list .tMain.fHdr.scroll set]] \
       -fill both -expand 1 -side right
 
-.tMain.fHdr.tree -columns {1 2 3 4}
+.tMain.fHdr.tree configure -columns {1 2 3 4}
 .tMain.fHdr.tree tag configure deleted -font $deletedFont
 
 bind .tMain.fHdr.tree <<TreeviewSelect>> {showBody %W}
