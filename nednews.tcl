@@ -440,11 +440,14 @@ pack [ttk::treeview .tMain.fHdr.tree \
 .tMain.fHdr.tree configure -columns {1 2 3 4}
 .tMain.fHdr.tree tag configure deleted -font $deletedFont
 
-bind .tMain.fHdr.tree <<TreeviewSelect>> {showBody %W}
-bind .tMain.fHdr.tree <Delete> {deleteMsg %W}
-
 .tMain.splitRTB add .tMain.fHdr
 
 # textbox for bodies
 .tMain.splitRTB add [text .tMain.xBdy -state disabled]
+
+# bindings
+bind .tMain.fHdr.tree <<TreeviewSelect>> {showBody %W}
+bind .tMain.fHdr.tree <Delete> {deleteMsg %W}
+
+bind .tMain <space> { .tMain.xBdy yview scroll 1 page }
 
