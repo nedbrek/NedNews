@@ -285,23 +285,6 @@ if {0} {
 	set settings [read $f]
 	close $f
 
-	set nc [::nntp::nntp [dict get $settings HOST] [dict get $settings PORT]]
-	$nc authinfo [dict get $settings USER] [dict get $settings PASS]
-
-	set msgList [fetchNntpMsgList $nc $settings 0]
-	set lastMsg [lindex $msgList 2]
-	set hdrList [$nc xover [expr $lastMsg - 100] $lastMsg]; set tmp 0
-	# msgId
-	# subject
-	# from
-	# date
-	# path
-	# body size
-	# header size
-	# xref
-
-	$nc quit
-
 	# NOTE: newnews disabled at eternal-september.org
 	set msgs [$nc newnews $groupName $lastDate]; set tmp 0
 
