@@ -412,6 +412,8 @@ proc refresh {} {
 }
 
 proc updateAccount {} {
+	updateNntpGroup 1 0
+	refresh
 }
 
 proc buildAccounts {w} {
