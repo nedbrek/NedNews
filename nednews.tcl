@@ -403,12 +403,15 @@ proc refresh {} {
 	set dbRes [::db eval {
 		SELECT id, author, subject, date, status FROM msgs
 		WHERE status != "deleted"
-		ORDER BY id DESC LIMIT 100
+		ORDER BY id DESC LIMIT 150
 	}]
 
 	foreach {id author subject date status} $dbRes {
 		.tMain.fHdr.tree insert {} 0 -text $subject -values [list $id $author $date $status]
 	}
+}
+
+proc updateAccount {} {
 }
 
 proc buildAccounts {w} {
@@ -459,11 +462,20 @@ pack [ttk::treeview .tMain.fHdr.tree \
 # textbox for bodies
 .tMain.splitRTB add [text .tMain.xBdy -state disabled]
 
+# right click on accounts
+menu .mRightAccount -tearoff 0
+.mRightAccount add command -label "Refresh from DB" -command "refresh"
+.mRightAccount add command -label "Fetch from Source" -command "updateAccount"
+
 ### bindings
 bind .tMain.fHdr.tree <<TreeviewSelect>> {showBody %W}
 bind .tMain.fHdr.tree <Delete> {deleteMsg %W}
 
 bind .tMain <space> { .tMain.xBdy yview scroll 1 page }
+
+bind .tMain.tSrcs <3> {
+	.mRightAccount post %X %Y
+}
 
 ### runtime
 sqlite3 ::db "test.db"
