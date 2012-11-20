@@ -4,6 +4,15 @@ package require tdom
 package require nntp
 package require sqlite3
 
+### helpers
+proc addReply {subject} {
+	return $subject
+}
+
+proc addQuotedLines {body} {
+	return $body
+}
+
 ### database
 proc createDb {} {
 	if {[info exists ::db]} {
@@ -339,6 +348,7 @@ proc clockScan {dateStr} {
 	return 0
 }
 
+### gui support
 proc deleteMsg {w} {
 	set sel [$w selection]
 	foreach i $sel {
@@ -416,6 +426,39 @@ proc buildAccounts {w} {
 	}
 }
 
+proc newPostWindow {} {
+	set t [toplevel .tNewPost]
+	pack [frame $t.fTop] -side top -expand 1 -fill x
+
+	pack [frame $t.fTop.fSubject] -side top -anchor w -expand 1 -fill x
+	pack [label $t.fTop.fSubject.l -text "Subject"] -side left
+	pack [entry $t.fTop.fSubject.e -width 60] -side left
+
+	pack [frame $t.fBot] -side top
+	pack [text  $t.fBot.t] -side top
+
+	return $t
+}
+
+proc reply {w} {
+	set sel [$w selection]
+	foreach i $sel {
+		set id [lindex [$w item $i -values] 0]
+		set origMsgFields [::db eval {
+			SELECT author, subject, body
+			FROM msgs
+			WHERE id = $id
+		}]
+
+		foreach {author subject body} $origMsgFields {}
+
+		set tNew [newPostWindow]
+		$tNew.fTop.fSubject.e insert end [addReply $subject]
+		$tNew.fBot.t insert end "$author wrote:\n"
+		$tNew.fBot.t insert end [addQuotedLines $body]
+	}
+}
+
 ### gui
 set deletedFont [font create -overstrike 1]
 
@@ -455,6 +498,7 @@ menu .mRightAccount -tearoff 0
 ### bindings
 bind .tMain.fHdr.tree <<TreeviewSelect>> {showBody %W}
 bind .tMain.fHdr.tree <Delete> {deleteMsg %W}
+bind .tMain.fHdr.tree <r> {reply %W}
 
 bind .tMain <space> { .tMain.xBdy yview scroll 1 page }
 
