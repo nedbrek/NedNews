@@ -6,11 +6,18 @@ package require sqlite3
 
 ### helpers
 proc addReply {subject} {
+	if {![regexp {^ *[rR][eE]:} $subject]} {
+		return "Re: $subject"
+	}
 	return $subject
 }
 
 proc addQuotedLines {body} {
-	return $body
+	set ret ""
+	foreach line [split $body "\n"] {
+		append ret "> $line\n"
+	}
+	return $ret
 }
 
 ### database
