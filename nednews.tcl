@@ -194,6 +194,42 @@ proc parseNntpHdrList {hdrList} {
 	return $ret
 }
 
+proc insertMsg {nc hdrList} {
+	foreach {msgId subject author date idstring path bodySz hdrSz xref} $hdrList {
+	}
+
+	if {$bodySz > 300000} {
+		# skip huge messages
+
+		# but insert headers, so we can fetch it later
+		::db eval {
+			INSERT INTO msgs
+			(author, subject, date, status, origHdrs, body)
+			VALUES(
+			$author, $subject, $date, "new", "NedNews_MsgId: $msgId, ""
+			)
+		}
+
+		return $msgId
+	}
+
+	set origMsg [$nc article $msgId]
+	set dm [parseNntpMsg $origMsg]
+
+	set origHdrs [dict get $dm HEADERS]
+	set body     [dict get $dm BODY]
+
+	::db eval {
+		INSERT INTO msgs
+		(author, subject, date, status, origHdrs, body)
+		VALUES(
+		$author, $subject, $date, "new", $origHdrs, $body
+		)
+	}
+
+	return $msgId
+}
+
 # update the database with new messages for the given group
 proc updateNntpGroup {accountId groupIndex} {
 	set settings [::db eval {
@@ -206,7 +242,8 @@ proc updateNntpGroup {accountId groupIndex} {
 	$nc authinfo [dict get $settings USER] [dict get $settings PASS]
 
 	set msgList [fetchNntpMsgList $nc $settings $groupIndex]
-	set lastMsg [lindex $msgList 2]
+	set firstMsg [lindex $msgList 1]
+	set lastMsg  [lindex $msgList 2]
 	set lastFetched [dict get $settings LAST_MSG_ID]
 	if {$lastFetched == $lastMsg} {
 		# up to date
@@ -217,27 +254,18 @@ proc updateNntpGroup {accountId groupIndex} {
 	# set the current pointer to the next message
 	if {$lastFetched eq ""} {
 		# no prior history, fetch first message
-		set lastFetch [lindex $msgList 1]
-		$nc stat $lastFetched
+		set lastFetch $firstMsg
 	} else {
-		# else, try to set cursor to last fetched, and advance
+		# else, try to set cursor to last fetched
 		if {[catch {$nc stat $lastFetched}] == 0} {
-			if {[catch {$nc next}]} {
-				return ;# nothing new
-			}
+			set lastFetch $firstMsg
 		}
 	}
 
-	# don't fetch forever
-	set ct 0
-
 	::db eval {BEGIN TRANSACTION}
 
-	set done 0
-	while {$ct < 500 && !$done} {
-		incr ct
-
-		set overview [lindex [$nc xover] 0]
+	set msgHdrs [$nc xover $lastFetched [expr {$lastFetched + 500}]]
+	foreach overview $msgHdrs {
 		# a single string with all this info, tab separated
 		# 0 msgId
 		# 1 subject
@@ -249,42 +277,8 @@ proc updateNntpGroup {accountId groupIndex} {
 		# 7 header size
 		# 8 xref
 		set hdrList [split $overview "\t"]
-		foreach {msgId subject author date idstring path bodySz hdrSz xref} $hdrList {
-		}
 
-		set lastFetched $msgId
-
-		if {$bodySz > 300000} {
-			# skip huge messages
-
-			# but insert headers, so we can fetch it later
-			::db eval {
-				INSERT INTO msgs
-				(author, subject, date, status, origHdrs, body)
-				VALUES(
-				$author, $subject, $date, "new", "NedNews_MsgId: $msgId, ""
-				)
-			}
-
-			set done [catch {$nc next}]
-			continue
-		}
-
-		set origMsg [$nc article]
-		set dm [parseNntpMsg $origMsg]
-
-		set origHdrs [dict get $dm HEADERS]
-		set body     [dict get $dm BODY]
-
-		::db eval {
-			INSERT INTO msgs
-			(author, subject, date, status, origHdrs, body)
-			VALUES(
-			$author, $subject, $date, "new", $origHdrs, $body
-			)
-		}
-
-		set done [catch {$nc next}]
+		set lastFetched [insertMsg $nc $hdrList]
 	}
 
 	$nc quit
