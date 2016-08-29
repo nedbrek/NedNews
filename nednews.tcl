@@ -299,29 +299,6 @@ if {0} {
 	# NOTE: newnews disabled at eternal-september.org
 	set msgs [$nc newnews $groupName $lastDate]; set tmp 0
 
-	# message handler
-	foreach msg $txt {
-		set dm [parseNntpMsg $msg]
-
-		set origHdrs [dict get $dm HEADERS]
-		set body     [dict get $dm BODY]
-
-		set hdrDict [parseNntpHdrList $origHdrs]
-		set author  [dict get $hdrDict FROM]
-		set subject [dict get $hdrDict SUBJECT]
-		set date    [dict get $hdrDict DATE]
-
-		::db eval {BEGIN TRANSACTION}
-		::db eval {
-			INSERT INTO msgs
-			(author, subject, date, status, origHdrs, body)
-			VALUES(
-			$author, $subject, $date, "new", $origHdrs, $body
-			)
-		}
-		::db eval {END TRANSACTION}
-	}
-
 	set maxBody 0
 	set oversz 154243
 	foreach msg $txt {
