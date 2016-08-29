@@ -213,10 +213,11 @@ proc updateNntpGroup {accountId groupIndex} {
 		set lastFetch [lindex $msgList 1]
 		$nc stat $lastFetched
 	} else {
-		# else, set cursor to last fetched, and advance
-		$nc stat $lastFetched
-		if {[catch {$nc next}]} {
-			return ;# nothing new
+		# else, try to set cursor to last fetched, and advance
+		if {[catch {$nc stat $lastFetched}] == 0} {
+			if {[catch {$nc next}]} {
+				return ;# nothing new
+			}
 		}
 	}
 
