@@ -487,6 +487,12 @@ pack [ttk::treeview .tMain.fHdr.tree \
 .tMain.fHdr.tree configure -columns {1 2 3 4}
 .tMain.fHdr.tree tag configure deleted -font $deletedFont
 
+# TODO save to settings
+.tMain.fHdr.tree column 1 -width 50
+.tMain.fHdr.tree column 2 -width 154
+.tMain.fHdr.tree column 3 -width 173
+.tMain.fHdr.tree column 4 -width 45
+
 .tMain.splitRTB add .tMain.fHdr
 
 # textbox for bodies
