@@ -254,11 +254,13 @@ proc updateNntpGroup {accountId groupIndex} {
 	# set the current pointer to the next message
 	if {$lastFetched eq ""} {
 		# no prior history, fetch first message
-		set lastFetch $firstMsg
+		set lastFetched $firstMsg
 	} else {
 		# else, try to set cursor to last fetched
-		if {[catch {$nc stat $lastFetched}] == 0} {
-			set lastFetch $firstMsg
+		if {[catch {$nc stat $lastFetched}] != 0} {
+			set lastFetched $firstMsg
+		} else {
+			incr lastFetched
 		}
 	}
 
