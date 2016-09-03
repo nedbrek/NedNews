@@ -445,6 +445,7 @@ set deletedFont [font create -overstrike 1]
 
 wm withdraw .
 toplevel .tMain
+wm geometry .tMain 1350x730+0+0
 
 ## a splitter for left and right windows
 pack [ttk::panedwindow .tMain.splitLR -orient horizontal] -expand 1 -fill both
