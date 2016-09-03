@@ -476,7 +476,15 @@ pack [ttk::treeview .tMain.fHdr.tree \
 .tMain.splitRTB add .tMain.fHdr
 
 # textbox for bodies
-.tMain.splitRTB add [text .tMain.xBdy -state disabled]
+frame .tMain.fBody
+pack [scrollbar .tMain.fBody.scroll -orient vertical \
+   -command [list .tMain.xBdy yview]] \
+      -fill y -side right
+pack [text .tMain.xBdy -state disabled \
+   -yscrollcommand [list .tMain.fBody.scroll set]] \
+   -in .tMain.fBody -side right -expand 1 -fill both
+
+.tMain.splitRTB add .tMain.fBody
 
 # right click on accounts
 menu .mRightAccount -tearoff 0
