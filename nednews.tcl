@@ -467,12 +467,6 @@ pack [ttk::treeview .tMain.fHdr.tree \
 .tMain.fHdr.tree configure -columns {1 2 3 4}
 .tMain.fHdr.tree tag configure deleted -font $deletedFont
 
-# TODO save to settings
-.tMain.fHdr.tree column 1 -width 50
-.tMain.fHdr.tree column 2 -width 154
-.tMain.fHdr.tree column 3 -width 173
-.tMain.fHdr.tree column 4 -width 45
-
 .tMain.splitRTB add .tMain.fHdr
 
 # textbox for bodies
@@ -506,4 +500,13 @@ bind .tMain.tSrcs <3> {
 sqlite3 ::db "test.db"
 #::db function clockScan {clockScan}
 buildAccounts .tMain.tSrcs
+
+tkwait visibility .tMain.fHdr.tree
+
+# TODO save to settings
+.tMain.fHdr.tree column #0 -width 492
+.tMain.fHdr.tree column 1 -width 66
+.tMain.fHdr.tree column 2 -width 295
+.tMain.fHdr.tree column 3 -width 230
+.tMain.fHdr.tree column 4 -width 45
 
