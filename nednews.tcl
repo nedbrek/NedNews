@@ -1,3 +1,4 @@
+#!/usr/bin/env wish
 package require Tk
 package require http
 package require tdom
@@ -264,6 +265,9 @@ proc updateNntpGroup {accountId groupIndex} {
 		}
 	}
 
+	.tMain.lStatus configure -text "$lastFetched of $lastMsg"
+	update idletasks
+
 	::db eval {BEGIN TRANSACTION}
 
 	set msgHdrs [$nc xover $lastFetched [expr {$lastFetched + 500}]]
@@ -281,6 +285,10 @@ proc updateNntpGroup {accountId groupIndex} {
 		set hdrList [split $overview "\t"]
 
 		set lastFetched [insertMsg $nc $hdrList]
+		if {$lastFetched % 10 == 0} {
+			.tMain.lStatus configure -text "$lastFetched of $lastMsg"
+			update idletasks
+		}
 	}
 
 	$nc quit
@@ -291,6 +299,7 @@ proc updateNntpGroup {accountId groupIndex} {
 		SET lastFetchId = $lastFetched
 		WHERE id = $accountId
 	}
+	.tMain.lStatus configure -text "Ready"
 }
 
 if {0} {
@@ -491,6 +500,8 @@ pack [text .tMain.xBdy -state disabled \
    -in .tMain.fBody -side right -expand 1 -fill both
 
 .tMain.splitRTB add .tMain.fBody
+
+pack [label .tMain.lStatus -text "Ready"] -side bottom -anchor w
 
 # right click on accounts
 menu .mRightAccount -tearoff 0
