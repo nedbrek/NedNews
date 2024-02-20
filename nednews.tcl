@@ -54,9 +54,9 @@ proc createDb {} {
 }
 
 ### http
-set url "http://semipublic.comp-arch.net/wiki/index.php?title=Special:RecentChanges&feed=atom"
+#set url "http://semipublic.comp-arch.net/wiki/index.php?title=Special:RecentChanges&feed=atom"
 
-set httpData ""
+#set httpData ""
 proc processXML {token} {
 	set httpData [::http::data $token]
 	set ::httpData $httpData
@@ -298,6 +298,18 @@ if {0} {
 	set settings [read $f]
 	close $f
 
+	set name "eternal september"
+	set host [dict get $settings HOST]
+	set port [dict get $settings PORT]
+	set user [dict get $settings USER]
+	set pass [dict get $settings PASS]
+	set groups [dict get $settings GROUPS]
+	set last_fetch_id [dict get $settings LAST_MSG_ID]
+	::db eval {
+		INSERT INTO nntp(name, host, port, user, pass, groups, lastFetchId)
+		VALUES($name, $host, $port, $user, $pass, $groups, $last_fetch_id)
+	}
+
 	# NOTE: newnews disabled at eternal-september.org
 	set msgs [$nc newnews $groupName $lastDate]; set tmp 0
 
@@ -497,9 +509,15 @@ bind .tMain.tSrcs <3> {
 }
 
 ### runtime
-sqlite3 ::db "test.db"
+if {[file exists "test.db"]} {
+	sqlite3 ::db "test.db"
+	buildAccounts .tMain.tSrcs
+} else {
+	createDb
+	# TODO populate db
+}
+
 #::db function clockScan {clockScan}
-buildAccounts .tMain.tSrcs
 
 tkwait visibility .tMain.fHdr.tree
 
